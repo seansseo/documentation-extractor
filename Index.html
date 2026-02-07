@@ -1,0 +1,288 @@
+<!--
+  Documentation Extractor
+
+  Frontend for the Documentation Extractor Google Apps Script web app.
+  Provides a two-phase UI: discover sitemaps, then extract and filter
+  page URLs with include/exclude keyword controls.
+
+  Author: Sean Seo
+  License: MIT
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sitemap URL Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .filter-bubble {
+            display: inline-flex;
+            align-items: center;
+            background-color: #e2e8f0;
+            color: #4a5568;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            cursor: default;
+        }
+        .filter-bubble .close-btn {
+            margin-left: 0.5rem;
+            cursor: pointer;
+            font-weight: bold;
+            color: #a0aec0;
+        }
+        .filter-bubble .close-btn:hover {
+            color: #718096;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-3xl">
+        <h1 class="text-3xl font-bold text-center mb-2 text-gray-800">Help Documentation URL Extractor v2</h1>
+        <p class="text-center text-gray-500 mb-6">Enter a website URL or a sitemap URL to extract links.</p>
+
+        <div id="urlInputSection" class="flex flex-col md:flex-row gap-4 mb-6">
+            <input type="text" id="urlInput" placeholder="e.g., cloud.google.com, iterable.com/sitemap.xml" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="extractButton" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                Extract URLs
+            </button>
+        </div>
+
+        <div id="sitemapSelectorSection" class="hidden">
+            <p class="text-gray-700 font-semibold mb-4">Multiple sitemaps found. Please select which one(s) to process:</p>
+            <div id="sitemapCheckboxContainer" class="max-h-48 overflow-y-auto border rounded-lg p-4 mb-4">
+                </div>
+            <div class="flex justify-end gap-4">
+                 <button id="processAllButton" class="bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-gray-700 transition-colors">
+                    Process All
+                </button>
+                <button id="processSelectedButton" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                    Process Selected
+                </button>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden text-center text-blue-500 mb-4">
+            <div class="flex items-center justify-center">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="loadingText" class="font-medium">Searching for sitemaps...</span>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <div class="w-full md:w-1/2">
+                    <label for="includeFilterInput" class="block text-gray-700 font-semibold mb-2">Include Keywords (Press Enter)</label>
+                    <div id="includeBubbles" class="flex flex-wrap mb-2 min-h-[24px]"></div>
+                    <input type="text" id="includeFilterInput" placeholder="e.g., bigquery, /docs" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="w-full md:w-1/2">
+                    <label for="excludeFilterInput" class="block text-gray-700 font-semibold mb-2">Exclude Keywords (Press Enter)</label>
+                    <div id="excludeBubbles" class="flex flex-wrap mb-2 min-h-[24px]"></div>
+                    <input type="text" id="excludeFilterInput" placeholder="e.g., /blog, /terms" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center mb-2">
+                <label id="resultsLabel" class="block text-gray-700 font-semibold">Results:</label>
+                <button id="copyButton" class="bg-gray-200 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg shadow-sm hover:bg-gray-300 transition-colors">
+                    Copy All Links
+                </button>
+            </div>
+            
+            <textarea id="results" class="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 focus:outline-none min-h-[300px]" readonly placeholder="Extracted URLs will appear here."></textarea>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlInput = document.getElementById('urlInput');
+            const extractButton = document.getElementById('extractButton');
+            const urlInputSection = document.getElementById('urlInputSection');
+            const sitemapSelectorSection = document.getElementById('sitemapSelectorSection');
+            const sitemapCheckboxContainer = document.getElementById('sitemapCheckboxContainer');
+            const processSelectedButton = document.getElementById('processSelectedButton');
+            const processAllButton = document.getElementById('processAllButton');
+            const includeFilterInput = document.getElementById('includeFilterInput');
+            const excludeFilterInput = document.getElementById('excludeFilterInput');
+            const includeBubblesContainer = document.getElementById('includeBubbles');
+            const excludeBubblesContainer = document.getElementById('excludeBubbles');
+            const resultsTextarea = document.getElementById('results');
+            const resultsLabel = document.getElementById('resultsLabel');
+            const copyButton = document.getElementById('copyButton');
+            const loadingIndicator = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+
+            let allExtractedUrls = [];
+            let includeKeywords = [];
+            let excludeKeywords = [];
+            let sitemapsFound = [];
+
+            function setUIState(isLoading, message = 'Searching for sitemaps...') {
+                if (isLoading) {
+                    loadingText.textContent = message;
+                    loadingIndicator.classList.remove('hidden');
+                    extractButton.disabled = true;
+                    processSelectedButton.disabled = true;
+                } else {
+                    loadingIndicator.classList.add('hidden');
+                    extractButton.disabled = false;
+                    processSelectedButton.disabled = false;
+                }
+            }
+            
+            function handleFailure(error) {
+                setUIState(false);
+                resultsTextarea.value = `An error occurred: ${error.message}`;
+            }
+
+            extractButton.addEventListener('click', () => {
+                const inputUrl = urlInput.value.trim();
+                if (!inputUrl) {
+                    resultsTextarea.value = "Please enter a valid URL.";
+                    return;
+                }
+                resetUIState();
+                setUIState(true, 'Searching for sitemaps...');
+                google.script.run
+                    .withSuccessHandler(onSitemapsFound)
+                    .withFailureHandler(handleFailure)
+                    .findSitemapsServer(inputUrl);
+            });
+            
+            function onSitemapsFound(sitemapArray) {
+                setUIState(false);
+                sitemapsFound = sitemapArray;
+                if (sitemapsFound.length === 0) {
+                    resultsTextarea.value = `No sitemaps found for the provided URL.`;
+                } else if (sitemapsFound.length === 1) {
+                    startUrlProcessing(sitemapsFound);
+                } else {
+                    sitemapCheckboxContainer.innerHTML = '';
+                    sitemapsFound.forEach((url, index) => {
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center mb-2';
+                        const checkboxId = `sitemap-check-${index}`;
+                        div.innerHTML = `
+                            <input id="${checkboxId}" type="checkbox" value="${url}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                            <label for="${checkboxId}" class="ml-2 text-sm font-medium text-gray-900 truncate" title="${url}">${url}</label>
+                        `;
+                        sitemapCheckboxContainer.appendChild(div);
+                    });
+                    urlInputSection.classList.add('hidden');
+                    sitemapSelectorSection.classList.remove('hidden');
+                }
+            }
+
+            function startUrlProcessing(sitemapUrlsToProcess) {
+                if (!sitemapUrlsToProcess || sitemapUrlsToProcess.length === 0) {
+                    resultsTextarea.value = "No sitemaps selected to process.";
+                    return;
+                }
+                resetUIState();
+                setUIState(true, 'Extracting URLs from sitemap(s)...');
+                google.script.run
+                    .withSuccessHandler(onExtractionComplete)
+                    .withFailureHandler(handleFailure)
+                    .processSitemapsServer(sitemapUrlsToProcess);
+            }
+
+            function onExtractionComplete(extractedUrls) {
+                setUIState(false);
+                if (extractedUrls && extractedUrls.length > 0) {
+                    allExtractedUrls = extractedUrls;
+                    filterAndDisplayUrls();
+                } else {
+                    resultsTextarea.value = 'No page URLs found in the selected sitemap(s).';
+                }
+            }
+
+            processSelectedButton.addEventListener('click', () => {
+                const selectedSitemaps = Array.from(sitemapCheckboxContainer.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+                startUrlProcessing(selectedSitemaps);
+            });
+
+            processAllButton.addEventListener('click', () => {
+                startUrlProcessing(sitemapsFound);
+            });
+
+            function filterAndDisplayUrls() {
+                let filteredUrls = allExtractedUrls;
+                if (includeKeywords.length > 0) {
+                    filteredUrls = filteredUrls.filter(url => includeKeywords.some(keyword => url.toLowerCase().includes(keyword)));
+                }
+                if (excludeKeywords.length > 0) {
+                    filteredUrls = filteredUrls.filter(url => !excludeKeywords.some(keyword => url.toLowerCase().includes(keyword)));
+                }
+                resultsTextarea.value = filteredUrls.join('\n');
+                resultsLabel.textContent = `Results (${filteredUrls.length}):`;
+            }
+
+            function addKeywordBubble(inputElement, container, keywordsArray) {
+                const terms = inputElement.value.trim().toLowerCase().split(',').map(term => term.trim()).filter(Boolean);
+                inputElement.value = '';
+                terms.forEach(keyword => {
+                    if (keyword && !keywordsArray.includes(keyword)) {
+                        keywordsArray.push(keyword);
+                        const bubble = document.createElement('span');
+                        bubble.className = 'filter-bubble';
+                        bubble.textContent = keyword;
+                        const closeBtn = document.createElement('span');
+                        closeBtn.className = 'close-btn';
+                        closeBtn.innerHTML = '&times;';
+                        bubble.appendChild(closeBtn);
+                        container.appendChild(bubble);
+                        closeBtn.addEventListener('click', () => {
+                            const index = keywordsArray.indexOf(keyword);
+                            if (index > -1) keywordsArray.splice(index, 1);
+                            bubble.remove();
+                            filterAndDisplayUrls();
+                        });
+                    }
+                });
+                filterAndDisplayUrls();
+            }
+
+            [includeFilterInput, excludeFilterInput].forEach(input => {
+                const container = input.id.includes('include') ? includeBubblesContainer : excludeBubblesContainer;
+                const keywords = input.id.includes('include') ? includeKeywords : excludeKeywords;
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addKeywordBubble(input, container, keywords);
+                    }
+                });
+            });
+
+            function resetUIState() {
+                sitemapSelectorSection.classList.add('hidden');
+                urlInputSection.classList.remove('hidden');
+                resultsTextarea.value = '';
+                resultsLabel.textContent = 'Results:';
+                allExtractedUrls = [];
+            }
+            
+            copyButton.addEventListener('click', () => {
+                if (!resultsTextarea.value) return;
+                navigator.clipboard.writeText(resultsTextarea.value).then(() => {
+                    const originalText = copyButton.textContent;
+                    copyButton.textContent = 'Copied!';
+                    setTimeout(() => { copyButton.textContent = originalText; }, 2000);
+                }).catch(err => console.error('Copy failed:', err));
+            });
+        });
+    </script>
+</body>
+</html>
