@@ -6,13 +6,13 @@ A Google Apps Script web app that extracts documentation URLs from any website's
 
 ## Background
 
-LLMs frequently hallucinate technical specifics—API parameters, CLI flags, and configuration schemas—because their training data is often outdated or generic. To get accurate answers, you need to ground the model in official, real-time documentation.
+LLMs frequently hallucinate technical specifics—API parameters, configuration schemas, etc.—because their training data is often outdated or generic. To get accurate answers, you need to ground the model in official, real-time documentation.
 
 The friction point: Most documentation sites are massive. Manually hunting for relevant URLs to feed into an AI tool is tedious.
 
-The solution: Documentation Extractor automates the discovery and filtering of a site's entire documentation architecture. By extracting every relevant URL from a sitemap, you can paste a clean list directly into NotebookLM, creating a "Second Brain" trained exclusively on official sources.
+The solution: Documentation Extractor automates the discovery and filtering of a site's entire documentation architecture. By extracting every relevant URL from a sitemap, you can paste a clean list directly into NotebookLM, creating an interactive guide trained exclusively on official sources.
 
-This workflow became the starting point for DocWeb, a more fully featured sitemap extraction and chatbot platform. (Currently in private beta)
+This idea became the foundation for [DocWeb](https://docweb.net), a more fully featured sitemap extraction and chatbot platform.
 
 ## What It Does
 
