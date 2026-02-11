@@ -63,8 +63,9 @@ The backend (`Code.gs`) runs on Google Apps Script using `UrlFetchApp` and `XmlS
 - **Large sitemaps can time out.** Google Apps Script has a maximum execution time of 6 minutes per call. Sites with very large sitemaps (e.g., `cloud.google.com` with 100,000+ URLs) will exceed this limit, causing the app to time out. Stick to small-to-medium documentation sites — `docs.stripe.com` (~3,800 URLs) works well.
 - **No progress feedback during processing.** Because `google.script.run` is a single async call, there is no way to stream progress back to the frontend. The spinner will show until processing either completes or times out.
 - **Apps Script quota limits.** `UrlFetchApp` is subject to daily quota limits. Heavy use may trigger rate limiting even with the built-in exponential backoff.
+- **Note:** Many large tech companies now embed chatbot assistants directly into their documentation sites, which can be more reliable for getting answers grounded in official docs.
 
-> **Note:** Many large tech companies now embed chatbot assistants directly into their documentation sites, which can be more reliable for getting answers grounded in official docs. For a more fully featured version of this project that addresses some of these limitations, see [DocWeb](https://docweb.net).
+- For a more fully featured version of this project that addresses some of these limitations, see [DocWeb](https://docweb.net).
 
 ## License
 
