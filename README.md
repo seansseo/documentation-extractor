@@ -26,7 +26,7 @@ This workflow became the starting point for DocWeb, a more fully featured sitema
 
 The app has a two-phase flow:
 
-1. **Find sitemaps** -- Enter a domain (e.g., `cloud.google.com`) or a direct sitemap URL. The backend checks `robots.txt` for `Sitemap:` directives, falling back to `/sitemap.xml`.
+1. **Find sitemaps** -- Enter a domain (e.g., `docs.stripe.com`) or a direct sitemap URL. The backend checks `robots.txt` for `Sitemap:` directives, falling back to `/sitemap.xml`.
 2. **Process sitemaps** -- Select one or more discovered sitemaps. The backend recursively fetches and parses every sitemap index and URL set, deduplicates the results, and returns them to the frontend where you can filter by keyword.
 
 The backend (`Code.gs`) runs on Google Apps Script using `UrlFetchApp` and `XmlService`. The frontend (`Index.html`) is a single-page HTML/JS app served by `HtmlService`.
@@ -48,7 +48,7 @@ The backend (`Code.gs`) runs on Google Apps Script using `UrlFetchApp` and `XmlS
 
 ## Usage
 
-1. Enter a website domain (e.g., `example.com`) or a direct sitemap URL.
+1. Enter a website domain (e.g., `docs.stripe.com`) or a direct sitemap URL.
 2. Click **Extract URLs**. The tool searches for sitemaps at that domain.
 3. If multiple sitemaps are found, select which ones to process or click **Process All**.
 4. Once extraction completes, use the **Include Keywords** and **Exclude Keywords** fields to filter results (press Enter to add each keyword).
@@ -56,6 +56,15 @@ The backend (`Code.gs`) runs on Google Apps Script using `UrlFetchApp` and `XmlS
 
 ![Extracting URLs from a sitemap](assets/screenshot-extracting.png)
 ![Filtered results ready to copy](assets/screenshot-results.png)
+
+## Limitations
+
+- **Requires a well-structured sitemap.** The tool relies on a website having a valid `robots.txt` that points to XML sitemaps (or a `/sitemap.xml` at the root). Sites without this setup will return no results.
+- **Large sitemaps can time out.** Google Apps Script has a maximum execution time of 6 minutes per call. Sites with very large sitemaps (e.g., `cloud.google.com` with 100,000+ URLs) will exceed this limit, causing the app to time out. Stick to small-to-medium documentation sites — `docs.stripe.com` (~3,800 URLs) works well.
+- **No progress feedback during processing.** Because `google.script.run` is a single async call, there is no way to stream progress back to the frontend. The spinner will show until processing either completes or times out.
+- **Apps Script quota limits.** `UrlFetchApp` is subject to daily quota limits. Heavy use may trigger rate limiting even with the built-in exponential backoff.
+
+> **Note:** Many large tech companies now embed chatbot assistants directly into their documentation sites, which can be more reliable for getting answers grounded in official docs. For a more fully featured version of this project that addresses some of these limitations, see [DocWeb](https://docweb.net).
 
 ## License
 

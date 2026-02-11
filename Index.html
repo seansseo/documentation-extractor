@@ -51,7 +51,7 @@
         <p class="text-center text-gray-500 mb-6">Enter a website URL or a sitemap URL to extract links.</p>
 
         <div id="urlInputSection" class="flex flex-col md:flex-row gap-4 mb-6">
-            <input type="text" id="urlInput" placeholder="e.g., cloud.google.com, iterable.com/sitemap.xml" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <input type="text" id="urlInput" placeholder="e.g., docs.stripe.com, iterable.com" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
             <button id="extractButton" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
                 Extract URLs
             </button>
@@ -86,7 +86,7 @@
                 <div class="w-full md:w-1/2">
                     <label for="includeFilterInput" class="block text-gray-700 font-semibold mb-2">Include Keywords (Press Enter)</label>
                     <div id="includeBubbles" class="flex flex-wrap mb-2 min-h-[24px]"></div>
-                    <input type="text" id="includeFilterInput" placeholder="e.g., bigquery, /docs" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="includeFilterInput" placeholder="e.g., /docs, /api" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="w-full md:w-1/2">
                     <label for="excludeFilterInput" class="block text-gray-700 font-semibold mb-2">Exclude Keywords (Press Enter)</label>
@@ -129,6 +129,8 @@
             let includeKeywords = [];
             let excludeKeywords = [];
             let sitemapsFound = [];
+            let serverCallTimeout = null;
+            const SERVER_TIMEOUT_MS = 360000; // 6 minutes (Apps Script execution limit)
 
             function setUIState(isLoading, message = 'Searching for sitemaps...') {
                 if (isLoading) {
@@ -137,12 +139,21 @@
                     extractButton.disabled = true;
                     processSelectedButton.disabled = true;
                 } else {
+                    clearTimeout(serverCallTimeout);
                     loadingIndicator.classList.add('hidden');
                     extractButton.disabled = false;
                     processSelectedButton.disabled = false;
                 }
             }
-            
+
+            function startServerTimeout() {
+                clearTimeout(serverCallTimeout);
+                serverCallTimeout = setTimeout(() => {
+                    setUIState(false);
+                    resultsTextarea.value = 'Request timed out. The sitemap may be too large for Google Apps Script to process within its 6-minute execution limit. Try selecting fewer sitemaps or a smaller documentation site.';
+                }, SERVER_TIMEOUT_MS);
+            }
+
             function handleFailure(error) {
                 setUIState(false);
                 resultsTextarea.value = `An error occurred: ${error.message}`;
@@ -156,6 +167,7 @@
                 }
                 resetUIState();
                 setUIState(true, 'Searching for sitemaps...');
+                startServerTimeout();
                 google.script.run
                     .withSuccessHandler(onSitemapsFound)
                     .withFailureHandler(handleFailure)
@@ -193,6 +205,7 @@
                 }
                 resetUIState();
                 setUIState(true, 'Extracting URLs from sitemap(s)...');
+                startServerTimeout();
                 google.script.run
                     .withSuccessHandler(onExtractionComplete)
                     .withFailureHandler(handleFailure)

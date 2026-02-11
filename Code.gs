@@ -31,15 +31,19 @@ function findSitemapsServer(inputUrl) {
       throw new Error("URL cannot be empty.");
     }
     // If the user enters a direct sitemap URL, just return that.
+    let sitemapUrls;
     if (inputUrl.toLowerCase().includes('.xml') || inputUrl.toLowerCase().includes('sitemap')) {
-      return [inputUrl];
+      sitemapUrls = [inputUrl];
+    } else {
+      // Otherwise, search for sitemaps at the given path.
+      let fullUrl = inputUrl.trim();
+      if (!fullUrl.startsWith('http')) {
+        fullUrl = `https://${fullUrl}`;
+      }
+      sitemapUrls = findSitemapsHelper(fullUrl);
     }
-    // Otherwise, search for sitemaps at the given path.
-    let fullUrl = inputUrl.trim();
-    if (!fullUrl.startsWith('http')) {
-      fullUrl = `https://${fullUrl}`;
-    }
-    return findSitemapsHelper(fullUrl);
+    // Expand any sitemap index files so the user can select individual sitemaps.
+    return expandSitemapIndexes(sitemapUrls);
   } catch (e) {
     console.error(`Error in findSitemapsServer: ${e.message}`);
     throw new Error(e.message);
@@ -67,6 +71,40 @@ function processSitemapsServer(sitemapsToProcess) {
 }
 
 // --- HELPER FUNCTIONS ---
+
+/**
+ * Expands sitemap index files into their child sitemap URLs.
+ * If a URL points to a sitemap index (contains <sitemap> entries), it is
+ * replaced with the individual child sitemap URLs. Regular sitemaps and
+ * unreachable URLs are kept as-is.
+ */
+function expandSitemapIndexes(sitemapUrls) {
+  const expanded = [];
+  sitemapUrls.forEach(url => {
+    try {
+      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      if (response.getResponseCode() !== 200) {
+        expanded.push(url);
+        return;
+      }
+      const xmlDoc = XmlService.parse(response.getContentText());
+      const root = xmlDoc.getRootElement();
+      const namespace = root.getNamespace();
+      const sitemaps = root.getChildren('sitemap', namespace);
+      if (sitemaps.length > 0) {
+        sitemaps.forEach(sitemap => {
+          const loc = sitemap.getChild('loc', namespace);
+          if (loc) expanded.push(loc.getText());
+        });
+      } else {
+        expanded.push(url);
+      }
+    } catch (e) {
+      expanded.push(url);
+    }
+  });
+  return expanded;
+}
 
 /**
  * Helper function that contains the exponential backoff logic for fetching and parsing sitemaps.
